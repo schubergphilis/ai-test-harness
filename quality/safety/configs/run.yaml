@@ -1,0 +1,10 @@
+# garak run config shared by every target. Caps keep total prompts ~<1500 (see README.md).
+system:
+  parallel_attempts: 2        # concurrency cap against the sovereign server
+  lite: true
+run:
+  generations: 1
+  seed: 42
+  soft_probe_prompt_cap: 10   # ≤10 prompts per probe
+reporting:
+  report_dir: REPORT_DIR      # replaced by run.sh with an absolute path

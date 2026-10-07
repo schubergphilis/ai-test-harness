@@ -1,0 +1,18 @@
+# OpenShell sandbox policy for compat-contract agents (schema: OpenShell docs/how-it-works/policies/schema.mdx, v0.1.x).
+# Network is default-deny. Allow only the litellm proxy on the host (and OTLP when tracing).
+# UNVERIFIED end to end: written from docs/source; not yet run (Docker stopped for memory).
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc, /proc, /dev/urandom]
+  read_write: [/app, /tmp, /dev/null]
+landlock: {compatibility: best_effort}
+network_policies:
+  llm:
+    endpoints:
+      - {host: host.openshell.internal, port: 4000, protocol: rest, access: read-write, enforcement: enforce}
+    binaries: [{path: "/usr/local/bin/python3.*"}, {path: /usr/local/bin/node}]
+  otlp:
+    endpoints:
+      - {host: host.openshell.internal, port: 3000, protocol: rest, access: read-write, enforcement: enforce}
+    binaries: [{path: "/usr/local/bin/python3.*"}, {path: /usr/local/bin/node}]

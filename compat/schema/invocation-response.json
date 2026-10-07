@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InvocationResponse",
+  "type": "object",
+  "required": ["output", "tool_calls", "usage", "harness"],
+  "properties": {
+    "output": {"type": "string"},
+    "tool_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "args"],
+        "properties": {
+          "name": {"type": "string"},
+          "args": {"type": "object"}
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {"type": ["integer", "null"]},
+        "output_tokens": {"type": ["integer", "null"]}
+      }
+    },
+    "harness": {"type": "string"},
+    "model": {"type": "string"},
+    "session_id": {"type": ["string", "null"]},
+    "user": {"type": ["string", "null"]}
+  }
+}

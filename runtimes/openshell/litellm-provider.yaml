@@ -1,0 +1,11 @@
+# Optional hardening (step 2): register litellm as an OpenShell provider profile so the sandbox only ever
+# sees a placeholder OPENAI_API_KEY; the supervisor injects the real key at this endpoint only.
+#   openshell profile import -f litellm-provider.yaml
+#   openshell provider create --name litellm --type litellm --credential OPENAI_API_KEY
+# then add `--provider litellm` to run.sh and drop the `llm` rule from policy.yaml (the provider adds it).
+# Modelled on OpenShell providers/openai.yaml at v0.1.2. UNVERIFIED.
+id: litellm
+endpoints:
+  - {host: host.openshell.internal, port: 4000, protocol: rest, access: read-write}
+credentials:
+  - {name: api_key, env_vars: [OPENAI_API_KEY], auth_style: bearer, header_name: authorization}

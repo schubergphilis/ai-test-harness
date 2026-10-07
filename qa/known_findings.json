@@ -1,0 +1,11 @@
+{
+  "_doc": "Accepted findings: matching checks with status fail are reported as xfail (known) with the reason. Wildcard '*' for harness/model. Review periodically; remove an entry once fixed so a regression shows red.",
+  "findings": [
+    {"suite": "audit", "harness": "openai-agents", "model": "*", "check": "llm_span_genai_semconv",
+     "reason": "OpenInference instrumentation emits llm.* attributes, not OTel GenAI gen_ai.request.model", "since": "2026-10-07"},
+    {"suite": "audit", "harness": "langgraph", "model": "*", "check": "llm_span_genai_semconv",
+     "reason": "OpenInference instrumentation emits llm.* attributes, not OTel GenAI gen_ai.request.model", "since": "2026-10-07"},
+    {"suite": "supply", "harness": "pi", "model": "*", "check": "no_high_vulns",
+     "reason": "basic-ftp GHSA-c475-qrg2-pj4r (CPU DoS) only reachable via PAC/FTP proxy config; transitive via pi-ai", "since": "2026-10-07"}
+  ]
+}

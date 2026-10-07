@@ -1,0 +1,43 @@
+# pre-commit install   (then hooks run on every commit; `pre-commit run -a` for the whole repo)
+exclude: |
+  (?x)^(
+    runs/|results/|quality/[^/]+/results/|
+    runtimes/docker-local/litellm\.yaml|
+    runtimes/docker-local/docker-compose\.harnesses\.yml|
+    runtimes/k8s/overlays/|
+    .*\.lock|.*package-lock\.json
+  )
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: [--maxkb=500]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: [-S, warning]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: registry-gen-check
+        name: generated files match harnesses.toml / models.toml (make gen)
+        entry: python3 scripts/registry.py gen --check
+        language: system
+        pass_filenames: false
+        files: ^(harnesses\.toml|models\.toml|scripts/registry\.py)$

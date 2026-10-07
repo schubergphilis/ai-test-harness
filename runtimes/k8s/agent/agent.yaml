@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: agent}
+spec:
+  selector: {matchLabels: {app: agent}}
+  template:
+    metadata: {labels: {app: agent}}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+        - name: agent
+          image: agentrt/HARNESS:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: OPENAI_BASE_URL, value: http://litellm:4000/v1}
+            - {name: OPENAI_API_KEY, valueFrom: {secretKeyRef: {name: llm-env, key: LITELLM_MASTER_KEY}}}
+            - {name: MODEL, valueFrom: {secretKeyRef: {name: llm-env, key: MODEL}}}
+            - {name: CANARY_FIXTURE, value: /app/canary.json}
+          readinessProbe: {httpGet: {path: /ping, port: 8080}, periodSeconds: 5}
+          resources: {requests: {memory: 256Mi, cpu: 100m}, limits: {memory: 512Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: agent}
+spec: {selector: {app: agent}, ports: [{port: 8080}]}

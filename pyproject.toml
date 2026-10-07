@@ -1,0 +1,26 @@
+# Tool configuration only (this repo is not a Python package). Each harness / suite has its own pyproject.
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["harnesses/_templates", "quality", "**/.venv", "**/node_modules", "runs", "results"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = [
+  "S101",   # assert is how pytest tests are written
+  "S603",   # subprocess without shell=True is intended (argument lists)
+  "S607",   # tools (uv, npm, syft, ...) are resolved from PATH on purpose
+  "S310",   # urllib on fixed localhost health URLs
+]
+
+[tool.ruff.lint.isort]
+# harness / qa modules import their siblings as top-level modules
+known-first-party = ["agent", "app", "tools_canary", "common", "compare", "registry", "report", "run", "mock_llm"]
+
+[tool.ruff.lint.per-file-ignores]
+"qa/tests/*" = ["S"]
+"tests/*" = ["S"]
+"qa/report.py" = ["E501"]                          # long inline HTML/CSS strings
+
+[tool.pytest.ini_options]
+testpaths = ["qa/tests"]

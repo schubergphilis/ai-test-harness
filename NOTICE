@@ -1,0 +1,9 @@
+Agent runtime x harness test bed
+Copyright 2026 Jacob Verhoeks
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It orchestrates, but does not include or redistribute, third-party agent frameworks, tools and models
+(Strands Agents, OpenAI Agents SDK, LangGraph, Pydantic AI, pi, LiteLLM, Inspect AI, garak, PyRIT,
+OpenTelemetry Collector, Syft, OSV-Scanner, OpenSSF Scorecard, Langfuse, NVIDIA OpenShell). Each is
+governed by its own licence; dependencies are resolved at install time from their upstream registries.

@@ -1,0 +1,68 @@
+# Single source of truth for model aliases. Harnesses only ever see an alias (MODEL=<alias>) and the
+# litellm proxy; `make gen` turns this file into runtimes/docker-local/litellm.yaml.
+# Deployment-specific values (URLs, keys, upstream model names) come from .env, never from this file.
+#
+# Fields
+#   alias       what harnesses and results use
+#   kind        mock | sovereign | frontier   (drives defaults and report grouping)
+#   provider    openai_compatible (default) | openrouter | bedrock     (how litellm reaches the model)
+#   model       env var with the upstream model name/id
+#   base_url    env var with the base URL            (openai_compatible)
+#   api_key     env var with the key                 (openai_compatible, openrouter)
+#   region      env var with the AWS region          (bedrock; credentials from the standard AWS chain)
+#   aws_profile env var with an AWS profile name     (bedrock, optional)
+#   default_qa  include in `make qa` by default (only if its env vars are set)
+#   red_team    include in the garak sweep by default
+
+[[model]]
+alias = "mock"
+kind = "mock"
+default_qa = true
+red_team = false
+
+[[model]]
+alias = "sovereign"
+kind = "sovereign"
+base_url = "SOVEREIGN_LITELLM_BASE_URL"
+api_key = "SOVEREIGN_LITELLM_API_KEY"
+model = "SOVEREIGN_MODEL"
+default_qa = true
+red_team = true
+
+[[model]]
+alias = "anthropic"
+kind = "frontier"
+base_url = "UPSTREAM_LITELLM_BASE_URL"
+api_key = "UPSTREAM_LITELLM_API_KEY"
+model = "ANTHROPIC_MODEL"
+default_qa = true
+red_team = true
+
+[[model]]
+alias = "chatgpt"
+kind = "frontier"
+base_url = "UPSTREAM_LITELLM_BASE_URL"
+api_key = "UPSTREAM_LITELLM_API_KEY"
+model = "CHATGPT_MODEL"
+default_qa = true
+red_team = true
+
+# ---- more providers: uncomment, add the env vars to .env, `make gen`, restart `make native-up`
+# [[model]]
+# alias = "openrouter-sonnet"
+# kind = "frontier"
+# provider = "openrouter"
+# api_key = "OPENROUTER_API_KEY"
+# model = "OPENROUTER_SONNET_MODEL"      # e.g. anthropic/claude-sonnet-5.5
+# default_qa = false
+# red_team = false
+#
+# [[model]]
+# alias = "bedrock-opus"
+# kind = "frontier"
+# provider = "bedrock"
+# model = "BEDROCK_OPUS_MODEL"           # e.g. eu.anthropic.claude-opus-5-5-v1:0 (inference profile id)
+# region = "AWS_REGION"
+# aws_profile = "AWS_PROFILE"
+# default_qa = false
+# red_team = false

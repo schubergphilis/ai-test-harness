@@ -1,0 +1,26 @@
+# secrets
+.env
+
+# environments / builds
+.venv/
+**/.venv/
+__pycache__/
+node_modules/
+dist/
+.pytest_cache/
+.ruff_cache/
+uv.lock.tmp
+
+# generated / raw results (may contain local paths, traces, red-team payloads).
+# Publish sanitized results with scripts/publish_results.py -> published-results/
+/runs/
+/results/
+quality/*/results/
+quality/*/logs/
+quality/audit/bin/
+**/vendor/
+
+# local tooling state
+.run/
+.playwright-mcp/
+.DS_Store

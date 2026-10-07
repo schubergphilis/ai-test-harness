@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PingResponse",
+  "type": "object",
+  "required": ["status"],
+  "properties": {"status": {"enum": ["Healthy", "HealthyBusy"]}}
+}

@@ -1,0 +1,17 @@
+[project]
+name = "agentrt-inspect"
+version = "0.1.0"
+description = "Inspect AI evals that score agent harnesses through the compat contract (/invocations)"
+requires-python = ">=3.12"
+dependencies = ["inspect-ai>=0.3.273", "httpx>=0.27"]
+
+# Registers the `harness` model provider with Inspect (inspect eval ... --model harness/<label>)
+[project.entry-points.inspect_ai]
+agentrt_inspect = "agentrt_inspect._registry"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentrt_inspect"]

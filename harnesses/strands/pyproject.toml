@@ -1,0 +1,9 @@
+[project]
+name = "agent-strands"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.142.1",
+    "strands-agents[openai,otel]>=1.57.1",
+    "uvicorn[standard]>=0.54.0",
+]

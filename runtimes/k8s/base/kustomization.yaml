@@ -1,0 +1,14 @@
+# Shared in-cluster services: litellm (aliases) + mock-llm. Built with --load-restrictor LoadRestrictionsNone
+# so the litellm config and .env are reused from the docker-local runtime and repo root.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agentrt
+resources: [namespace.yaml, litellm.yaml, mock-llm.yaml]
+configMapGenerator:
+  - name: litellm-config
+    files: [config.yaml=../../docker-local/litellm.yaml]
+secretGenerator:
+  - name: llm-env
+    envs: [../../../.env]
+generatorOptions:
+  disableNameSuffixHash: true   # agent overlays reference llm-env by fixed name

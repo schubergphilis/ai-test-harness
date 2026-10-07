@@ -1,0 +1,5 @@
+# Generic agent workload: one Deployment + Service implementing compat/CONTRACT.md. Overlays set name + image.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agentrt
+resources: [agent.yaml]

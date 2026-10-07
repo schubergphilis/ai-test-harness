@@ -1,0 +1,61 @@
+# Single source of truth for agent harnesses.
+# Everything else reads this file: qa/, quality/, the Makefile, and the generated runtime configs
+# (`make gen` rewrites runtimes/docker-local/docker-compose.harnesses.yml and runtimes/k8s/overlays/*).
+# Add a harness: `make new-harness NAME=<name> LANG=python|node`. See CONTRIBUTING.md.
+#
+# Fields
+#   name      directory under harnesses/, image agentrt/<name>, service name
+#   index     1..19, unique; ports are <base> + index (see [ports])
+#   language  python (uv + uvicorn app:app) | node (npm build, node dist/server.js)
+#   package   the framework package whose locked version is reported in results
+#   repo      upstream GitHub repo (OpenSSF Scorecard)
+#   licence   SPDX id of the framework
+
+[ports]           # base port per purpose; harness port = base + index
+docker_local = 18080
+k3d = 28080
+openshell = 38080
+inspect = 18100
+safety = 18200
+audit = 18300
+qa = 18400
+
+[[harness]]
+name = "strands"
+index = 1
+language = "python"
+package = "strands-agents"
+repo = "strands-agents/sdk-python"
+licence = "Apache-2.0"
+
+[[harness]]
+name = "openai-agents"
+index = 2
+language = "python"
+package = "openai-agents"
+repo = "openai/openai-agents-python"
+licence = "MIT"
+
+[[harness]]
+name = "langgraph"
+index = 3
+language = "python"
+package = "langgraph"
+repo = "langchain-ai/langgraph"
+licence = "MIT"
+
+[[harness]]
+name = "pydantic-ai"
+index = 4
+language = "python"
+package = "pydantic-ai-slim"
+repo = "pydantic/pydantic-ai"
+licence = "MIT"
+
+[[harness]]
+name = "pi"
+index = 5
+language = "node"
+package = "@mariozechner/pi-agent-core"
+repo = "badlogic/pi-mono"
+licence = "MIT"
