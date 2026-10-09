@@ -1,5 +1,5 @@
 # build context: repo root
-FROM python:3.13.16-slim
+FROM python:3.14.7-slim
 COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /bin/uv
 WORKDIR /app
 COPY harnesses/openai-agents/pyproject.toml harnesses/openai-agents/uv.lock ./

@@ -1,5 +1,5 @@
 # build context: repo root
-FROM python:3.13.16-slim
+FROM python:3.14.7-slim
 RUN pip install --no-cache-dir fastapi==0.142.2 uvicorn==0.54.0
 WORKDIR /app
 COPY compat/mock-llm/mock_llm.py .
