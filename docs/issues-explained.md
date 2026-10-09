@@ -2,8 +2,8 @@
 
 This page explains each issue the test bed found: what the agent actually did, what that could lead to in real
 use, how sure we are, and what to do about it. The numbers come from run `20261008T110031Z_034946a` (local,
-`runs/<run_id>/report.html`) and the published snapshot `20261007T152332Z_nocommit`
-([findings.md](findings.md) has the tables).
+`runs/<run_id>/report.html`) and the snapshot `20261007T152332Z_nocommit` ([findings.md](findings.md) has the
+tables). The latest run's grid and evidence per issue: [issues.md](../published-results/20261009T161823Z_8ed7ced/issues.md).
 
 **A few words used below:**
 - **Harness:** the agent framework around the model (strands, openai-agents, langgraph, pydantic-ai, pi,

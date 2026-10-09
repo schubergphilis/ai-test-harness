@@ -92,8 +92,13 @@ The article mapping shows where a test produces *evidence relevant to* an obliga
 
 ### Example report
 
-A full run (5 harnesses × 4 models × 5 suites, 387 checks): [`published-results/20261007T152332Z_nocommit/report.html`](published-results/20261007T152332Z_nocommit/report.html)
-(download and open it, or view it via [htmlpreview](https://htmlpreview.github.io/?https://github.com/schubergphilis/ai-test-harness/blob/main/published-results/20261007T152332Z_nocommit/report.html)). The machine-readable result is [`run.json`](published-results/20261007T152332Z_nocommit/run.json).
+A full run (6 harnesses × 4 models, 8 suites, 2,931 checks), published in
+[`published-results/20261009T161823Z_8ed7ced/`](published-results/20261009T161823Z_8ed7ced/):
+
+- [**issues.md**](published-results/20261009T161823Z_8ed7ced/issues.md): what the tests found, in plain English, with the harness × model grid and transcript evidence per issue
+- [**report.md**](published-results/20261009T161823Z_8ed7ced/report.md): the full report (every check, metric and suite)
+- the same two pages as HTML: [`issues.html`](published-results/20261009T161823Z_8ed7ced/issues.html), [`report.html`](published-results/20261009T161823Z_8ed7ced/report.html) (download and open them, or view via htmlpreview: [issues](https://htmlpreview.github.io/?https://github.com/schubergphilis/ai-test-harness/blob/main/published-results/20261009T161823Z_8ed7ced/issues.html), [report](https://htmlpreview.github.io/?https://github.com/schubergphilis/ai-test-harness/blob/main/published-results/20261009T161823Z_8ed7ced/report.html))
+- the machine-readable result: [`run.json`](published-results/20261009T161823Z_8ed7ced/run.json)
 
 ![At a glance: harness × model matrix](docs/img/report-glance.png)
 
@@ -105,7 +110,7 @@ A full run (5 harnesses × 4 models × 5 suites, 387 checks): [`published-result
 
 </details>
 
-A sanitized snapshot of a full run is published in `published-results/` (see `scripts/publish_results.py`). [docs/findings.md](docs/findings.md) summarizes what it shows; [docs/issues-explained.md](docs/issues-explained.md) explains each issue in plain English (what happened, what it could lead to, how sure, what to do). Every run also gets `runs/<id>/issues.html` (`qa/issues.py`): the same issues with that run's harness × model grid and evidence from its transcripts (the task, the commands the agent ran, its answer, what the sandbox saw). It quotes transcripts, so it is not published. Generated output (`runs/`, `quality/*/results/`) is not committed: it can hold local paths, traces and red-team transcripts.
+A sanitized snapshot of a full run is published in `published-results/` (see `scripts/publish_results.py`). [docs/findings.md](docs/findings.md) summarizes what it shows; [docs/issues-explained.md](docs/issues-explained.md) explains each issue in plain English (what happened, what it could lead to, how sure, what to do). Every run also gets `runs/<id>/issues.html` (`qa/issues.py`): the same issues with that run's harness × model grid and evidence from its transcripts (the task, the commands the agent ran, its answer, what the sandbox saw). The published copy is scrubbed (paths, IPs, URLs, keys) and leaves out the garak hit transcripts (red-team prompts and the model's replies); `report.md`/`issues.md` are made from the HTML with pandoc. Generated output (`runs/`, `quality/*/results/`) is not committed: it can hold local paths, traces and red-team transcripts.
 
 ## Extending
 

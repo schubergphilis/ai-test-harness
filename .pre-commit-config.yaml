@@ -19,6 +19,7 @@ repos:
       - id: trailing-whitespace
       - id: check-added-large-files
         args: [--maxkb=500]
+        exclude: ^published-results/   # a published run's run.json/report.html are ~1 MB by design
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.9
     hooks:

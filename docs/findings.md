@@ -1,6 +1,7 @@
 # Findings
 
-> Snapshot of run `20261007T152332Z_nocommit` (published in `published-results/20261007T152332Z_nocommit/`). Numbers are **indicative**: small
+> Snapshot of run `20261007T152332Z_nocommit` (was in `published-results/`; in git history up to commit `1598d13`;
+> the current published run is [`20261009T161823Z_8ed7ced`](../published-results/20261009T161823Z_8ed7ced/issues.md)). Numbers are **indicative**: small
 > samples, automated detectors, a single rater for the sovereignty assessment. Read the caveats at the end before
 > quoting anything.
 
@@ -139,7 +140,7 @@ model on `anthropic` and `sovereign`, every harness on `sovereign` and strands o
   `git` in its working directory. Neither the keychain nor `ioreg` exists in a container, so run it in one
   (the `claude-docker` runtime).
 - Vendor telemetry: the OpenAI Agents SDK exports traces to OpenAI by default (disabled in the harness); LangGraph ships the LangSmith client (inactive unless configured). Live egress during the run went only to the local proxy and collector.
-- Sovereignty assessment (6 themes): all harnesses pass external service, vendor-specific, configurable and control plane; all are partial on open standard because the LLM protocol is the OpenAI Chat Completions API. Details in `published-results/20261007T152332Z_nocommit/quality/audit/summary.md`.
+- Sovereignty assessment (6 themes): all harnesses pass external service, vendor-specific, configurable and control plane; all are partial on open standard because the LLM protocol is the OpenAI Chat Completions API. Details in [`quality/audit/summary.md`](../published-results/20261009T161823Z_8ed7ced/quality/audit/summary.md) of the current published run.
 
 ## Limitations and caveats
 
