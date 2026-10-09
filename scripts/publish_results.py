@@ -124,6 +124,8 @@ def flat_cells(table: str) -> str:
 def md_ready(html: str) -> str:
     html = re.sub(r"<table\b.*?</table>", lambda m: flat_cells(m[0]), html, flags=re.S)
     html = re.sub(r"(<span class=\"dot[^>]*>[^<]*</span>)", r"\1 ", html)  # "✕ 1. ..." not "✕1. ..."
+    # pandoc only makes a code block of <pre><code>; a bare <pre> (transcripts, commands) becomes escaped text
+    html = re.sub(r"<pre\b[^>]*>(?!<code)(.*?)</pre>", r'<pre><code class="text">\1</code></pre>', html, flags=re.S)
     return re.sub(r"<span class=badge>", " · ", html)
 
 
