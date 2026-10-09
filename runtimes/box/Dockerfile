@@ -1,7 +1,7 @@
 # Scenario box: the container the QA box suite `docker exec`s into (SCENARIO_EXEC=box or strands-sandbox).
 # Built by build.sh from the scenario fixture.
 # No harness, no model access, no network (run with --network none): it only holds the fake world, for real.
-FROM alpine:3.22
+FROM alpine:3.24
 # GNU timeout: busybox's leaves a watchdog process behind for the full timeout, which reads as a lingering process
 RUN apk add --no-cache coreutils && adduser -D -u 10001 -h /home/agent agent
 # /seed/workspace is copied into the /workspace tmpfs at start (rootfs is read-only)
