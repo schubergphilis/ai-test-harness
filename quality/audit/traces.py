@@ -18,10 +18,17 @@ def load_spans(path: str | pathlib.Path) -> list[dict]:
     p = pathlib.Path(path)
     if not p.exists():
         return spans
-    for line in p.read_text().splitlines():
+    lines = p.read_text().splitlines()
+    for i, line in enumerate(lines):
         if not line.strip():
             continue
-        for rs in json.loads(line).get("resourceSpans", []):
+        try:
+            batch = json.loads(line)
+        except json.JSONDecodeError:
+            if i == len(lines) - 1:  # the collector may still be writing its last line; the poll retries
+                continue
+            raise
+        for rs in batch.get("resourceSpans", []):
             res = {a["key"]: _val(a["value"]) for a in rs.get("resource", {}).get("attributes", [])}
             for ss in rs.get("scopeSpans", []):
                 scope = ss.get("scope", {}).get("name", "")

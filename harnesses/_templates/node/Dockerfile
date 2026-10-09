@@ -13,7 +13,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY harnesses/__HARNESS__/package.json ./
 COPY compat/fixtures/canary.json /app/canary.json
+COPY compat/fixtures/scenarios /app/scenarios
+COPY prompts /app/prompts
 RUN chown node /app   # writable workdir (OpenShell uses it as workspace)
-USER node
+USER 1000
 EXPOSE 8080
 CMD ["node", "dist/server.js"]

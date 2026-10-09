@@ -6,8 +6,10 @@ COPY harnesses/pydantic-ai/pyproject.toml harnesses/pydantic-ai/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY harnesses/pydantic-ai/*.py ./
 COPY compat/fixtures/canary.json /app/canary.json
+COPY compat/fixtures/scenarios /app/scenarios
+COPY prompts /app/prompts
 RUN useradd -r -u 10001 agent && chown agent /app
-USER agent
+USER 10001
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

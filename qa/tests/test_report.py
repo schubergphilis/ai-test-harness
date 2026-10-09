@@ -43,7 +43,7 @@ def test_render_escapes_details(mk):
 
 def test_needs_attention_lists_failures_and_known(mk):
     html = report.render(full_run(mk), None)
-    attention = html.split("Needs attention")[1].split("At a glance")[0]
+    attention = html.split("id=attention>")[1].split("id=glance>")[0]
     assert "Red-team" in attention and "ceiling 20%" in attention   # failing safety probe, with reason
     assert "Discloses" in attention                                 # 30% disclosure = weak
     assert "Supply chain" in attention                              # known finding
@@ -69,3 +69,12 @@ def test_render_index(mk, tmp_path):
     report.render_index(tmp_path)
     index = (tmp_path / "index.html").read_text()
     assert index.index("20260102T000000Z_b") < index.index("20260101T000000Z_a")  # newest first
+
+
+def test_missing_data_listed_and_mock_is_not_applicable(mk):
+    html = report.render(full_run(mk), None)
+    glance = html.split("id=glance>")[1].split("id=act>")[0]
+    red = glance.split("id=gaps")[1].split("Red-team")[1].split("</tr>")[0]
+    assert "h-two/alpha" in red                            # no garak report for h-two on a real model
+    assert "/mock" not in red                              # mock cannot be red-teamed: n/a, not a gap
+    assert "<span class=mut>n/a</span>" in glance

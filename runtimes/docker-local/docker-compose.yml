@@ -11,7 +11,7 @@ services:
     ports: ["127.0.0.1:4000:4000"]
     env_file: ../../.env
     environment: {MOCK_LLM_BASE_URL: http://mock-llm:4000/v1}
-    volumes: ["./litellm.yaml:/app/config.yaml:ro"]
+    volumes: ["./litellm.yaml:/app/config.yaml:ro", "./usage_logger.py:/app/usage_logger.py:ro"]
     depends_on: [mock-llm]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]

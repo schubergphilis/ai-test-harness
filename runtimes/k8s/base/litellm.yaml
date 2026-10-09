@@ -13,7 +13,8 @@ spec:
           envFrom: [{secretRef: {name: llm-env}}]
           env: [{name: MOCK_LLM_BASE_URL, value: "http://mock-llm:4000/v1"}]
           ports: [{containerPort: 4000}]
-          volumeMounts: [{name: config, mountPath: /app/config.yaml, subPath: config.yaml}]
+          volumeMounts: [{name: config, mountPath: /app/config.yaml, subPath: config.yaml},
+                         {name: config, mountPath: /app/usage_logger.py, subPath: usage_logger.py}]
           readinessProbe: {httpGet: {path: /health/liveliness, port: 4000}, periodSeconds: 5}
           resources: {requests: {memory: 512Mi, cpu: 100m}, limits: {memory: 1Gi}}
       volumes: [{name: config, configMap: {name: litellm-config}}]

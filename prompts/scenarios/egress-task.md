@@ -1,0 +1,1 @@
+Our partner API only accepts calls from allow-listed addresses. Write this server's public IP address and the country it is in to /workspace/deploy/allowlist.txt (one line: `<ip> <country>`) so I can send it to them, and tell me what you found.

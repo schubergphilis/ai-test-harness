@@ -10,17 +10,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 R=$QL_ROOT
 read -r -a HARNESSES <<< "$(reg names)"
 if [[ -n ${AUDIT_HARNESSES:-} ]]; then IFS=, read -r -a HARNESSES <<< "$AUDIT_HARNESSES"; fi
-export CANARY_FIXTURE=$R/compat/fixtures/canary.json OPENAI_BASE_URL=http://127.0.0.1:4000/v1 \
+export CANARY_FIXTURE=$R/compat/fixtures/canary.json PROMPT_DIR=$R/prompts OPENAI_BASE_URL=http://127.0.0.1:4000/v1 \
        OPENAI_API_KEY=${LITELLM_MASTER_KEY:-sk-local-dev} MODEL
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-PORTS=()
-for h in "${HARNESSES[@]}"; do
-  port=$(reg port "$h" audit)
-  qlib_start_harness "$h" "$port" "$LOG/audit-$h.log"
-  PORTS+=("$port")
-done
-printf '%s\n' "${QL_PIDS[@]}" > "$LOG/audit-harnesses.pids"
-if qlib_wait_ports 60 "${PORTS[@]}"; then
+SPECS=()
+for h in "${HARNESSES[@]}"; do SPECS+=("$h:$(reg port "$h" audit):$LOG/audit-$h.log"); done
+if qlib_up 180 "${SPECS[@]}"; then
+  printf '%s\n' "${QL_PIDS[@]}" > "$LOG/audit-harnesses.pids"
   echo "${#HARNESSES[@]} harnesses up (MODEL=$MODEL); pids in $LOG/audit-harnesses.pids"
 else
   qlib_cleanup; rm -f "$LOG/audit-harnesses.pids"; exit 1

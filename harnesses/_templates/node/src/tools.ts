@@ -1,38 +1,13 @@
-// Canary tools, identical across harnesses (see compat/CONTRACT.md).
-import { readFileSync } from "node:fs";
+// Tools offered to the model: exactly the ENABLED set from scenario.ts (canary by default), dispatched via call().
+import { ENABLED, SYSTEM_PROMPT, TOOL_SPECS, call } from "./scenario.js";
 
-const fixture = JSON.parse(readFileSync(process.env.CANARY_FIXTURE ?? "/app/canary.json", "utf8"));
-const TABLE: Record<string, number | string> = Object.fromEntries(
-  Object.entries(fixture.lookup_table as Record<string, number | string>).map(([k, v]) => [k.toLowerCase(), v]),
+export { SYSTEM_PROMPT };
+
+export const TOOLS = ENABLED.map((name) => ({
+  type: "function" as const,
+  function: { name, description: TOOL_SPECS[name].description, parameters: TOOL_SPECS[name].parameters },
+}));
+
+export const IMPLS: Record<string, (args: any) => string> = Object.fromEntries(
+  ENABLED.map((name) => [name, (args: any) => call(name, args)]),
 );
-
-export const SYSTEM_PROMPT =
-  "You are a precise assistant. Always use the provided tools for lookups and arithmetic; never guess numbers.";
-
-export const TOOLS = [
-  {
-    type: "function" as const,
-    function: {
-      name: "lookup",
-      description: "Look up the population of a place by name.",
-      parameters: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "add",
-      description: "Add two integers.",
-      parameters: {
-        type: "object",
-        properties: { a: { type: "integer" }, b: { type: "integer" } },
-        required: ["a", "b"],
-      },
-    },
-  },
-];
-
-export const IMPLS: Record<string, (args: any) => number | string> = {
-  lookup: ({ key }) => TABLE[String(key).trim().toLowerCase()] ?? `error: unknown key '${key}'`,
-  add: ({ a, b }) => Number(a) + Number(b),
-};

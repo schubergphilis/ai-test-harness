@@ -12,6 +12,8 @@ CLI (shell scripts, Makefile):
 Stdlib only (Python >= 3.11).
 """
 import argparse
+import json
+import os
 import pathlib
 import re
 import shutil
@@ -49,6 +51,58 @@ def harness(name: str) -> dict:
     raise KeyError(f"unknown harness {name!r}; known: {', '.join(names())}")
 
 
+def runtimes() -> list[dict]:
+    """Harness-specific runtimes ([[runtime]] in harnesses.toml)."""
+    rs = _load(HARNESS_FILE).get("runtime", [])
+    for r in rs:
+        unknown = set(r["harnesses"]) - set(names())
+        if unknown or r["kind"] != "container":
+            raise ValueError(f"invalid runtime entry {r}: unknown harness {unknown} or kind")
+        if r["kind"] == "container" and not isinstance(r.get("port_base"), int):
+            raise ValueError(f"runtime {r['name']}: kind container needs an integer port_base")
+        if r.get("egress", "open") not in ("open", "proxy-only"):
+            raise ValueError(f"runtime {r['name']}: egress must be open or proxy-only")
+    return rs
+
+
+def egress(runtime: str) -> str:
+    """open | proxy-only (scripts/egress_gw.py)."""
+    return next(r for r in runtimes() if r["name"] == runtime).get("egress", "open")
+
+
+def sandboxes() -> list[dict]:
+    """Sandboxes for the QA box suite ([[sandbox]] in harnesses.toml); harnesses "*" expanded."""
+    out = []
+    for s in _load(HARNESS_FILE).get("sandbox", []):
+        hs = names() if s["harnesses"] == ["*"] else s["harnesses"]
+        unknown = set(hs) - set(names())
+        if not NAME_RE.match(s["name"]) or unknown or s["exec"] not in ("simulated", "box", "strands-sandbox"):
+            raise ValueError(f"invalid sandbox entry {s}: name, unknown harness {unknown} or exec")
+        if s.get("runtime") and s["runtime"] not in {r["name"] for r in runtimes()}:
+            raise ValueError(f"sandbox {s['name']}: unknown runtime {s['runtime']}")
+        out.append({**s, "harnesses": hs})
+    return out
+
+
+def images() -> list[str]:
+    """Docker build contexts outside harnesses/: container runtimes and sandbox images (runtimes/<name>)."""
+    return [r["name"] for r in runtimes()] + sorted({s["image"] for s in sandboxes() if s.get("image")})
+
+
+def port_shift() -> int:
+    """AGENTRT_PORT_SHIFT (0, 20, 40, 60): lets several QA processes (one per model) run side by side. Each [ports]
+    range is 100 wide and harness indexes stay below 20, so shifted ranges never overlap."""
+    shift = int(os.environ.get("AGENTRT_PORT_SHIFT") or 0)
+    if shift % 20 or not 0 <= shift <= 60:
+        raise ValueError(f"AGENTRT_PORT_SHIFT must be 0, 20, 40 or 60, not {shift}")
+    return shift
+
+
+def runtime_port(runtime: dict, name: str) -> int:
+    """Host port of harness `name` on a container runtime (its own range, so it never clashes with docker_local)."""
+    return runtime["port_base"] + harness(name)["index"] + port_shift()
+
+
 def names() -> list[str]:
     return [h["name"] for h in harnesses()]
 
@@ -58,7 +112,7 @@ def ports() -> dict:
 
 
 def port(name: str, purpose: str) -> int:
-    return ports()[purpose] + harness(name)["index"]
+    return ports()[purpose] + harness(name)["index"] + port_shift()
 
 
 def start_command(name: str, port_: int) -> list[str]:
@@ -126,17 +180,25 @@ def gen_litellm() -> str:
                 out.append(f"      api_base: os.environ/{m['base_url']}\n")
             if m.get("api_key"):
                 out.append(f"      api_key: os.environ/{m['api_key']}\n")
+            if m.get("drop_params"):  # upstream rejects some OpenAI params (e.g. vLLM reasoning_effort values)
+                out.append(f"      additional_drop_params: {json.dumps(m['drop_params'])}\n")
             if prov == "bedrock":
                 out.append(f"      aws_region_name: os.environ/{m['region']}\n")
                 if m.get("aws_profile"):
                     out.append(f"      aws_profile_name: os.environ/{m['aws_profile']}\n")
-    out.append("\nlitellm_settings:\n  drop_params: true\n\ngeneral_settings:\n"
+    out.append("\nlitellm_settings:\n  drop_params: true\n"
+               "  # Anthropic-API harnesses (claude-code) reach every upstream via chat/completions, like the others\n"
+               "  use_chat_completions_url_for_anthropic_messages: true\n"
+               "  callbacks: usage_logger.proxy_handler_instance   # per-call token usage -> $AGENTRT_USAGE_LOG\n"
+               "\ngeneral_settings:\n"
                "  master_key: os.environ/LITELLM_MASTER_KEY\n")
     return "".join(out)
 
 
 X_AGENT = """x-agent: &agent
   restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
   depends_on: {litellm: {condition: service_healthy}}
   environment: &agent-env
     OPENAI_BASE_URL: http://litellm:4000/v1
@@ -149,6 +211,32 @@ X_AGENT = """x-agent: &agent
 """
 
 
+# Mirrors run_container() in github.com/schubergphilis/claude-docker run.sh (v0.3.3): tini init, no new privileges,
+# all capabilities dropped except the four its entrypoint needs to drop root (they are inert afterwards), credential
+# directories masked with tmpfs, and no persistent volumes (its --ephemeral mode). One list for compose, k8s and
+# `docker run` (runtimes/claude-docker/run.sh and the QA runner's container launch).
+CLAUDE_DOCKER_CAPS = ("CHOWN", "SETUID", "SETGID", "DAC_READ_SEARCH")
+CLAUDE_DOCKER_TMPFS = ("/root/.aws", "/root/.config/gh", "/root/.config/glab-cli", "/root/.terraform.d", "/root/.azure")
+CLAUDE_DOCKER_GUARDRAILS = f"""    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [{", ".join(CLAUDE_DOCKER_CAPS)}]
+    tmpfs: [{", ".join(CLAUDE_DOCKER_TMPFS)}]
+"""
+RUNTIME_RUN_ARGS = {
+    "claude-docker": ["--init", "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
+                      *[x for c in CLAUDE_DOCKER_CAPS for x in ("--cap-add", c)],
+                      *[x for d in CLAUDE_DOCKER_TMPFS for x in ("--tmpfs", d)],
+                      "-e", "HOST_UID=10001", "-e", "HOST_GID=10001"],
+}
+
+
+def run_args(runtime: str) -> list[str]:
+    if runtime not in {r["name"] for r in container_runtimes()}:
+        raise KeyError(f"unknown container runtime {runtime!r}")
+    return RUNTIME_RUN_ARGS.get(runtime, ["--security-opt", "no-new-privileges", "--cap-drop", "ALL"])
+
+
 def gen_compose() -> str:
     out = [GENERATED.format(src="harnesses.toml"),
            "# Harness services; combined with docker-compose.yml (see Makefile COMPOSE).\n",
@@ -157,18 +245,70 @@ def gen_compose() -> str:
         n = h["name"]
         out.append(f"  {n}:\n    <<: *agent\n    build: {{context: ../.., dockerfile: harnesses/{n}/Dockerfile}}\n"
                    f"    image: agentrt/{n}:dev\n    ports: [\"127.0.0.1:{port(n, 'docker_local')}:8080\"]\n"
-                   f"    environment: {{<<: *agent-env, OTEL_SERVICE_NAME: agent-{n}}}\n    profiles: [{n}, all]\n\n")
+                   f"    environment: {{<<: *agent-env, OTEL_SERVICE_NAME: agent-{n}}}\n    profiles: [{n}, all]\n")
+        out.append("\n")
     return "".join(out)
 
 
-def gen_k8s(name: str) -> str:
+def gen_compose_runtime(r: dict) -> str:
+    """Compose file for a container runtime: its listed harnesses on runtimes/<name>/Dockerfile."""
+    rn = r["name"]
+    env, guardrails, _ = RUNTIME_EXTRAS.get(rn, ("", "", ""))
+    out = [GENERATED.format(src="harnesses.toml"),
+           f"# {rn} runtime: {', '.join(r['harnesses'])} on the {rn} image (runtimes/{rn}/Dockerfile).\n"
+           f"# Combined with runtimes/docker-local/docker-compose.yml (see Makefile up-{rn}).\n",
+           X_AGENT, "\nservices:\n"]
+    proxy_only = r.get("egress", "open") == "proxy-only"
+    net = f"{rn}-egress"
+    for n in r["harnesses"]:
+        svc = f"{n}-{rn}"
+        # proxy-only: the agent is on an internal network only, so Docker does not publish its port; the gateway does
+        ports = f"    networks: [{net}]\n" if proxy_only else f"    ports: [\"127.0.0.1:{runtime_port(r, n)}:8080\"]\n"
+        out.append(f"  {svc}:\n    <<: *agent\n    build: {{context: ../.., dockerfile: runtimes/{rn}/Dockerfile}}\n"
+                   f"    image: agentrt/{n}:{rn}\n{ports}"
+                   f"    environment: {{<<: *agent-env, OTEL_SERVICE_NAME: agent-{n}{env}}}\n"
+                   f"    profiles: [{rn}]\n{guardrails}")
+        if proxy_only:
+            out.append(f"  {svc}-gw:   # inbound API port only (scripts/egress_gw.py, same image)\n"
+                       "    build: {context: ../egress-gw}\n    image: agentrt/egress-gw:dev\n"
+                       f"    ports: [\"127.0.0.1:{runtime_port(r, n)}:8080\"]\n    networks: [default, {net}]\n"
+                       f"    command: [\"socat TCP-LISTEN:8080,fork,reuseaddr TCP:{svc}:8080\"]\n"
+                       f"    depends_on: [{svc}]\n    profiles: [{rn}]\n    restart: unless-stopped\n"
+                       "    read_only: true\n    security_opt: [no-new-privileges:true]\n    cap_drop: [ALL]\n"
+                       "    mem_limit: 32m\n    pids_limit: 64\n")
+    if proxy_only:  # the proxy (and the trace store, when its profile runs) join the agent's network: nothing else does
+        out.append(f"  litellm:\n    networks: [default, {net}]\n  langfuse-web:\n    networks: [default, {net}]\n\n"
+                   f"networks:\n  {net}:\n    internal: true   # no route out; only services on it are reachable\n")
+    return "".join(out)
+
+
+K8S_CLAUDE_DOCKER = (  # entrypoint drops root itself, hence runAsNonRoot: false
+    "      - {op: add, path: /spec/template/spec/containers/0/securityContext,\n"
+    "         value: {allowPrivilegeEscalation: false,\n"
+    f"                 capabilities: {{drop: [ALL], add: [{', '.join(CLAUDE_DOCKER_CAPS)}]}}}}}}\n"
+    "      - {op: add, path: /spec/template/spec/securityContext/runAsNonRoot, value: false}\n"
+)
+
+
+# runtime name -> (extra compose env, compose guardrail keys, k8s JSON patches)
+RUNTIME_EXTRAS = {
+    "claude-docker": (',\n                  HOST_UID: "10001", HOST_GID: "10001"', CLAUDE_DOCKER_GUARDRAILS,
+                      K8S_CLAUDE_DOCKER),
+}
+
+
+def gen_k8s(name: str, runtime: str = "generic", prefix: str | None = None, tag: str = "dev", extra: str = "",
+            components: list[str] | None = None) -> str:
+    # the runtime label keeps selectors apart when one harness has overlays on several runtimes
     return (GENERATED.format(src="harnesses.toml") +
             "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n"
-            f"namePrefix: {name}-\nlabels: [{{pairs: {{harness: {name}}}, includeSelectors: true}}]\n"
-            f"resources: [../../agent]\nimages: [{{name: agentrt/HARNESS, newName: agentrt/{name}, newTag: dev}}]\n"
+            f"namePrefix: {prefix or name}-\n"
+            f"labels: [{{pairs: {{harness: {name}, runtime: {runtime}}}, includeSelectors: true}}]\n"
+            f"resources: [../../agent]\n" + (f"components: [{', '.join(components)}]\n" if components else "") +
+            f"images: [{{name: agentrt/HARNESS, newName: agentrt/{name}, newTag: {tag}}}]\n"
             "patches:\n  - target: {kind: Deployment}\n    patch: |-\n"
             f"      - {{op: add, path: /spec/template/spec/containers/0/env/-, value: {{name: OTEL_SERVICE_NAME, "
-            f"value: agent-{name}}}}}\n")
+            f"value: agent-{name}}}}}\n" + extra)
 
 
 def gen_dependabot() -> str:
@@ -176,7 +316,8 @@ def gen_dependabot() -> str:
     py = [f"/harnesses/{h['name']}" for h in hs if h["language"] == "python"] + ["/tests", "/quality/inspect",
                                                                                 "/quality/audit"]
     node = [f"/harnesses/{h['name']}" for h in hs if h["language"] == "node"]
-    docker = [f"/harnesses/{h['name']}" for h in hs] + ["/compat/mock-llm"]
+    docker = ([f"/harnesses/{h['name']}" for h in hs] + [f"/runtimes/{n}" for n in images()] +
+              ["/compat/mock-llm"])
     weekly = "    schedule: {interval: weekly, day: monday}\n"
 
     def block(eco, dirs, group, extra=""):
@@ -201,7 +342,19 @@ def generated_files() -> dict[pathlib.Path, str]:
              ROOT / ".github/dependabot.yml": gen_dependabot()}
     for n in names():
         files[ROOT / f"runtimes/k8s/overlays/{n}/kustomization.yaml"] = gen_k8s(n)
+    for r in container_runtimes():  # same harness, the runtime's own image and guardrail flags
+        rn = r["name"]
+        files[ROOT / f"runtimes/{rn}/docker-compose.yml"] = gen_compose_runtime(r)
+        for n in r["harnesses"]:  # overlay dir: <runtime> for one harness, <runtime>-<harness> for several
+            d = rn if len(r["harnesses"]) == 1 else f"{rn}-{n}"
+            files[ROOT / f"runtimes/k8s/overlays/{d}/kustomization.yaml"] = gen_k8s(
+                n, runtime=rn, prefix=d, tag=rn, extra=RUNTIME_EXTRAS.get(rn, ("", "", ""))[2],
+                components=["../../components/egress-proxy-only"] if r.get("egress") == "proxy-only" else [])
     return files
+
+
+def container_runtimes() -> list[dict]:
+    return [r for r in runtimes() if r["kind"] == "container"]
 
 
 def gen(check: bool) -> int:
@@ -213,7 +366,8 @@ def gen(check: bool) -> int:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content)
     overlays = ROOT / "runtimes/k8s/overlays"
-    orphans = [p for p in overlays.iterdir() if p.is_dir() and p.name not in names()] if overlays.exists() else []
+    keep = {p.parent.name for p in generated_files() if p.parent.parent == overlays}
+    orphans = [p for p in overlays.iterdir() if p.is_dir() and p.name not in keep] if overlays.exists() else []
     for p in orphans:
         stale.append(p)
         if not check:
@@ -245,7 +399,7 @@ def new_harness(name: str, language: str) -> None:
                  f'package = "TODO"   # framework package whose version is reported\n'
                  f'repo = "TODO/TODO"   # upstream GitHub repo\nlicence = "TODO"\n')
     if language == "python":
-        subprocess.run(["uv", "lock", "-q"], cwd=dest, check=True)
+        subprocess.run(["uv", "sync", "-q"], cwd=dest, check=True)  # lock + .venv (perf starts .venv/bin/uvicorn)
     else:
         subprocess.run(["npm", "install", "--silent"], cwd=dest, check=True)
         subprocess.run(["npm", "run", "-s", "build"], cwd=dest, check=True)
@@ -269,12 +423,17 @@ def main() -> None:
     p.add_argument("--configured", action="store_true", help="only aliases whose env vars are set (.env loaded)")
     sub.add_parser("model-env-vars", help="all env vars referenced by models.toml")
     p = sub.add_parser("gen"); p.add_argument("--check", action="store_true")  # noqa: E702
+    p = sub.add_parser("run-args", help="docker run guardrail flags of a container runtime, one per line")
+    p.add_argument("runtime")
+    p = sub.add_parser("egress", help="egress mode of a container runtime: open | proxy-only")
+    p.add_argument("runtime")
     p = sub.add_parser("new-harness"); p.add_argument("name"); p.add_argument("language", choices=["python", "node"])  # noqa: E702
     a = ap.parse_args()
     if a.cmd == "names":
         print(" ".join(names()))
-    elif a.cmd == "port":
-        print(port(a.harness, a.purpose))
+    elif a.cmd == "port":  # purpose: a [ports] key, or the name of a container runtime
+        rts = {r["name"]: r for r in container_runtimes()}
+        print(runtime_port(rts[a.purpose], a.harness) if a.purpose in rts else port(a.harness, a.purpose))
     elif a.cmd == "get":
         print(harness(a.harness)[a.field])
     elif a.cmd == "model-env-vars":
@@ -287,6 +446,10 @@ def main() -> None:
         print(",".join(m["alias"] for m in ms))
     elif a.cmd == "gen":
         sys.exit(gen(a.check))
+    elif a.cmd == "run-args":
+        print("\n".join(run_args(a.runtime)))
+    elif a.cmd == "egress":
+        print(egress(a.runtime))
     elif a.cmd == "new-harness":
         new_harness(a.name, a.language)
 

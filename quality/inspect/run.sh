@@ -14,17 +14,18 @@ ROOT=$QL_ROOT
 read -r -a HARNESSES <<< "$(reg names)"
 if [[ -n ${INSPECT_HARNESSES:-} ]]; then IFS=, read -r -a HARNESSES <<< "$INSPECT_HARNESSES"; fi
 LOGS=${INSPECT_LOG_DIR:-$HERE/results/logs}; PROC=${INSPECT_PROC_DIR:-$HERE/results/proc}; mkdir -p "$LOGS" "$PROC"
-export CANARY_FIXTURE=$ROOT/compat/fixtures/canary.json OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://127.0.0.1:4000/v1} \
+export SCENARIO_DIR=$ROOT/compat/fixtures/scenarios CANARY_FIXTURE=$ROOT/compat/fixtures/canary.json PROMPT_DIR=$ROOT/prompts \
+       OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://127.0.0.1:4000/v1} \
        OPENAI_API_KEY=${OPENAI_API_KEY:-${LITELLM_MASTER_KEY:-sk-local-dev}} MODEL=$ALIAS
 trap qlib_cleanup EXIT
 
-PORTS=()
+PORTS=(); SPECS=()
 for h in "${HARNESSES[@]}"; do
   port=$(reg port "$h" inspect)
-  qlib_start_harness "$h" "$port" "$PROC/$h.log"
-  PORTS+=("$port")
+  PORTS+=("$port"); SPECS+=("$h:$port:$PROC/$h.log")
 done
-qlib_wait_ports 90 "${PORTS[@]}"
+# a harness that never answers fails only its own evals ("eval failed: ..."), not the others'
+qlib_up 180 "${SPECS[@]}" || echo "warning: not every harness is up; see $PROC" >&2
 
 for i in "${!HARNESSES[@]}"; do
   h=${HARNESSES[$i]}

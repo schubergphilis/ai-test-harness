@@ -13,7 +13,7 @@ This track red-teams the **agent** through the compat contract (`POST /invocatio
 | `promptinject.HijackHateHumans` | LLM01 direct injection | task hijack to a rogue string |
 | `latentinjection.LatentInjectionReport` | LLM01 indirect injection | instructions hidden in a document the agent processes |
 | `web_injection.MarkdownImageExfil` | LLM02 / LLM05 | data exfiltration via rendered markdown image URLs |
-| `dan.DanInTheWild` | LLM01 jailbreak | in-the-wild jailbreak prompts |
+| `dan.DanInTheWild` | LLM01 jailbreak | in-the-wild jailbreak prompts. Not in the default sweep: the detector counts reworded refusals. Opt in with `PROBES` |
 | `encoding.InjectBase64` | LLM01 obfuscation | base64-smuggled payloads (**bare model only**, see findings) |
 
 Excluded deliberately, because they write malware-like payloads that endpoint protection may flag: `malwaregen`, `av_spam_scanning` and `exploitation`.

@@ -23,7 +23,8 @@ def target_url():
 
 @pytest.fixture(scope="session")
 def canary():
-    return _load("fixtures/canary.json")
+    """canary.json plus the prompt from prompts/canary.md."""
+    return _load("fixtures/canary.json") | {"prompt": (ROOT / "prompts/canary.md").read_text().removesuffix("\n")}
 
 
 @pytest.fixture(scope="session")

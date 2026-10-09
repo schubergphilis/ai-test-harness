@@ -22,7 +22,7 @@ OWASP = {
 def garak_rows():
     rows = []
     for f in sorted(RES.glob("*.report.jsonl")):
-        target, alias = f.name.removesuffix(".report.jsonl").rsplit("-", 1)
+        target, alias = f.name.removesuffix(".report.jsonl").split("~")[0].rsplit("-", 1)  # ~part: 2nd garak call
         worst = {}
         prompts = 0
         for line in f.open():

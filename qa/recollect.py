@@ -1,4 +1,5 @@
-"""Rebuild the Inspect records of an existing run from its saved logs (no model calls), e.g. after a scorer fix:
+"""Rebuild the Inspect and scenario records of an existing run from saved logs/transcripts (no model calls),
+e.g. after a scorer fix:
 
     # re-score saved logs with the current scorer (Inspect Python API; the CLI prompts interactively):
     #   cd quality/inspect && uv run python -c "from inspect_ai import score; from inspect_ai.log import \
@@ -23,8 +24,15 @@ from common import ROOT  # noqa: E402
 def main():
     run_dir = pathlib.Path(sys.argv[1]).resolve()
     run = json.loads((run_dir / "run.json").read_text())
-    checks = [c for c in run["checks"] if c["suite"] != "inspect"]
-    metrics = [m for m in run["metrics"] if m["suite"] != "inspect"]
+    suites = {"inspect"} | ({"scenarios", "box"} & set(run["config"]["suites"]))
+    checks = [c for c in run["checks"] if c["suite"] not in suites]
+    metrics = [m for m in run["metrics"] if m["suite"] not in suites]
+    if suites & {"scenarios", "box"}:
+        import scenarios
+        for model in run["config"]["models"]:
+            c, m = scenarios.rescore(run_dir, model)
+            checks += c
+            metrics += m
     for model in run["config"]["models"]:
         log_dir = run_dir / model / "inspect"
         if not log_dir.exists():
@@ -42,7 +50,7 @@ def main():
     run["checks"], run["metrics"] = checks, metrics
     run["summary"] = {s: sum(1 for c in checks if c["status"] == s) for s in ("pass", "fail", "error", "skip", "xfail")}
     stamp = dt.datetime.now(dt.UTC).isoformat()
-    run.setdefault("recollected", []).append({"at": stamp, "suites": ["inspect"]})
+    run.setdefault("recollected", []).append({"at": stamp, "suites": sorted(suites)})
     (run_dir / "run.json").write_text(json.dumps(run, indent=1))
     print(f"recollected {run_dir.name}: {run['summary']}")
     subprocess.run([sys.executable, ROOT / "qa/report.py", run_dir], check=True)

@@ -56,7 +56,11 @@ class HarnessAPI(ModelAPI):
         usage = body.get("usage") or {}
         inp, out = usage.get("input_tokens") or 0, usage.get("output_tokens") or 0
         meta = {"tool_calls": body.get("tool_calls", []), "harness": body.get("harness"),
-                "alias": body.get("model"), "latency_s": round(elapsed, 3)}
+                "alias": body.get("model"), "latency_s": round(elapsed, 3),
+                "stop_reason": body.get("stop_reason")}
+        # The harness answers 200 when its model call failed (stop_reason "error", e.g. upstream 403/429): carry
+        # the error so the sample counts as an error, not as a wrong answer.
+        error = (body.get("error") or "model call failed") if body.get("stop_reason") == "error" else None
         return ModelOutput(
             model=self.model_name,
             choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=body.get("output", ""),
@@ -65,4 +69,5 @@ class HarnessAPI(ModelAPI):
             usage=ModelUsage(input_tokens=inp, output_tokens=out, total_tokens=inp + out),
             time=elapsed,
             metadata=meta,
+            error=error,
         )

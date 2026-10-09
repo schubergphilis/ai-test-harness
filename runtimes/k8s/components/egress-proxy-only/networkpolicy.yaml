@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: egress-proxy-only, namespace: agentrt}
+spec:
+  podSelector: {matchLabels: {app: agent}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchExpressions: [{key: app, operator: In, values: [litellm]}]}}]
+      ports: [{port: 4000, protocol: TCP}]
+    - to: [{namespaceSelector: {matchExpressions: [{key: kubernetes.io/metadata.name, operator: In, values: [kube-system]}]},
+            podSelector: {matchExpressions: [{key: k8s-app, operator: In, values: [kube-dns]}]}}]
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]

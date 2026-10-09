@@ -1,0 +1,6 @@
+# egress = "proxy-only" on k8s: the agent pod may reach the litellm pods (port 4000) and cluster DNS, nothing else.
+# Needs a CNI that enforces NetworkPolicy (k3s/k3d: built in). matchExpressions, not matchLabels, for the targets:
+# the overlay's labels (includeSelectors) are added to matchLabels and would no longer match litellm / kube-dns.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources: [networkpolicy.yaml]

@@ -1,11 +1,11 @@
 {
   "_doc": "Accepted findings: matching checks with status fail are reported as xfail (known) with the reason. Wildcard '*' for harness/model. Review periodically; remove an entry once fixed so a regression shows red.",
   "findings": [
-    {"suite": "audit", "harness": "openai-agents", "model": "*", "check": "llm_span_genai_semconv",
-     "reason": "OpenInference instrumentation emits llm.* attributes, not OTel GenAI gen_ai.request.model", "since": "2026-10-07"},
-    {"suite": "audit", "harness": "langgraph", "model": "*", "check": "llm_span_genai_semconv",
-     "reason": "OpenInference instrumentation emits llm.* attributes, not OTel GenAI gen_ai.request.model", "since": "2026-10-07"},
     {"suite": "supply", "harness": "pi", "model": "*", "check": "no_high_vulns",
-     "reason": "basic-ftp GHSA-c475-qrg2-pj4r (CPU DoS) only reachable via PAC/FTP proxy config; transitive via pi-ai", "since": "2026-10-07"}
+     "reason": "basic-ftp GHSA-c475-qrg2-pj4r (CPU DoS) only reachable via PAC/FTP proxy config; transitive via pi-ai", "since": "2026-10-07"},
+    {"suite": "perf", "harness": "claude-code", "model": "*", "check": "no_host_probes",
+     "reason": "Claude Code CLI reads the macOS keychain (security find-generic-password 'Claude Code-credentials-<hash>') even with ANTHROPIC_AUTH_TOKEN set and an isolated CLAUDE_CONFIG_DIR, and the hardware UUID (ioreg IOPlatformExpertDevice); native macOS only, neither exists in containers", "since": "2026-10-08"},
+    {"suite": "perf", "harness": "openai-agents", "model": "*", "check": "expected_executables",
+     "reason": "openai SDK platform headers (X-Stainless-OS) call platform.platform(), which forks `uname -p` on macOS; CPU arch only, sent to the local litellm proxy; seen only when the process poll catches it", "since": "2026-10-08"}
   ]
 }

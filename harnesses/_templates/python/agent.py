@@ -12,18 +12,11 @@ from openai import AsyncOpenAI
 import tools_canary
 
 HARNESS = "__HARNESS__"
-MAX_TURNS = 10
 
-TOOLS = [
-    {"type": "function", "function": {
-        "name": "lookup", "description": "Look up the population of a place by name.",
-        "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
-    {"type": "function", "function": {
-        "name": "add", "description": "Add two integers.",
-        "parameters": {"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
-                       "required": ["a", "b"]}}},
-]
-IMPLS = {"lookup": lambda a: tools_canary.lookup(a["key"]), "add": lambda a: tools_canary.add(int(a["a"]), int(a["b"]))}
+# tools enabled for this process (canary by default, a scenario's fake tools with SCENARIO=...)
+TOOLS = [{"type": "function", "function": {"name": n, "description": tools_canary.TOOL_SPECS[n][0],
+                                           "parameters": tools_canary.TOOL_SPECS[n][1]}}
+         for n in tools_canary.ENABLED]
 
 _tracer = None
 if os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
@@ -50,25 +43,31 @@ client = AsyncOpenAI(base_url=os.environ["OPENAI_BASE_URL"], api_key=os.environ[
 async def run(prompt: str, session_id: str | None, user: str | None) -> dict:
     model = os.environ.get("MODEL", "mock")
     messages = [{"role": "system", "content": tools_canary.SYSTEM_PROMPT}, {"role": "user", "content": prompt}]
-    tool_calls, tin, tout, output = [], 0, 0, ""
+    tool_calls, tin, tout, output, stop_reason = [], 0, 0, "", "max_turns"
     with _span(f"invoke_agent {HARNESS}", **{"session.id": session_id, "user.id": user}):
-        for _ in range(MAX_TURNS):
+        for _ in range(tools_canary.MAX_TURNS):
             with _span(f"chat {model}", **{"gen_ai.request.model": model, "session.id": session_id, "user.id": user}):
                 resp = await client.chat.completions.create(model=model, messages=messages, tools=TOOLS)
             if resp.usage:
                 tin += resp.usage.prompt_tokens or 0
                 tout += resp.usage.completion_tokens or 0
             msg = resp.choices[0].message
+            if resp.choices[0].finish_reason == "content_filter":  # upstream guardrail
+                stop_reason = "content_filter"
+                break
             if not msg.tool_calls:
-                output = msg.content or ""
+                output, stop_reason = msg.content or "", "end_turn"
                 break
             messages.append(msg.model_dump(exclude_none=True))
             for tc in msg.tool_calls:
-                args = json.loads(tc.function.arguments or "{}")
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                except json.JSONDecodeError:  # malformed arguments from the model: keep them visible
+                    args = {"_raw": tc.function.arguments}
                 tool_calls.append({"name": tc.function.name, "args": args})
                 with _span(f"execute_tool {tc.function.name}", **{"gen_ai.tool.name": tc.function.name,
                                                                     "session.id": session_id, "user.id": user}):
-                    impl = IMPLS.get(tc.function.name)
-                    result = impl(args) if impl else f"error: unknown tool {tc.function.name}"
+                    result = tools_canary.call(tc.function.name, args)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
-    return {"output": output.strip(), "tool_calls": tool_calls, "usage": {"input_tokens": tin, "output_tokens": tout}}
+    return {"output": output.strip(), "tool_calls": tool_calls, "usage": {"input_tokens": tin, "output_tokens": tout},
+            "stop_reason": stop_reason}

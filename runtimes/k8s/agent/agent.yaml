@@ -6,11 +6,12 @@ spec:
   template:
     metadata: {labels: {app: agent}}
     spec:
-      securityContext: {runAsNonRoot: true}
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: agent
           image: agentrt/HARNESS:dev
           imagePullPolicy: IfNotPresent
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
           ports: [{containerPort: 8080}]
           env:
             - {name: OPENAI_BASE_URL, value: http://litellm:4000/v1}

@@ -1,7 +1,7 @@
 # Single source of truth for agent harnesses.
 # Everything else reads this file: qa/, quality/, the Makefile, and the generated runtime configs
 # (`make gen` rewrites runtimes/docker-local/docker-compose.harnesses.yml and runtimes/k8s/overlays/*).
-# Add a harness: `make new-harness NAME=<name> LANG=python|node`. See CONTRIBUTING.md.
+# Add a harness: `make new-harness NAME=<name> HARNESS_LANG=python|node`. See CONTRIBUTING.md.
 #
 # Fields
 #   name      directory under harnesses/, image agentrt/<name>, service name
@@ -19,6 +19,8 @@ inspect = 18100
 safety = 18200
 audit = 18300
 qa = 18400
+perf = 18500
+scenarios = 18600
 
 [[harness]]
 name = "strands"
@@ -59,3 +61,49 @@ language = "node"
 package = "@mariozechner/pi-agent-core"
 repo = "badlogic/pi-mono"
 licence = "MIT"
+
+[[harness]]
+name = "claude-code"
+index = 6
+language = "python"
+package = "claude-agent-sdk"
+repo = "anthropics/claude-agent-sdk-python"
+licence = "MIT"   # SDK; the Claude Code CLI it drives is proprietary
+
+# Harness-specific runtimes. The generic runtimes (native, Docker Compose, k3d, OpenShell) run every harness;
+# these run only the harnesses listed, because they build on that harness's own sandboxing.
+#   kind  container = where the agent runs (hardened image + guardrail flags); needs port_base
+#   egress  "proxy-only": the container sits on an internal Docker network and reaches only the LiteLLM proxy
+#           (and the OTLP collector) through a gateway (scripts/egress_gw.py); "open" (default): Docker's network
+[[runtime]]
+name = "claude-docker"
+harnesses = ["claude-code"]
+kind = "container"
+upstream = "schubergphilis/claude-docker"
+port_base = 18700   # host port = port_base + harness index (claude-code: 18706)
+egress = "proxy-only"
+
+# Sandboxes for the QA `box` suite (harness x sandbox x model): where the scenarios' run_command / read_file /
+# list_dir really execute. The plain `scenarios` suite is the simulated baseline for every harness.
+#   exec     SCENARIO_EXEC passed to the harness: box (tools_canary, every harness) | strands-sandbox
+#   image    runtimes/<image>/build.sh builds it (agentrt/box:dev)
+#   runtime  the harness itself runs as a container on this [[runtime]] (agentrt/<harness>:<runtime>, with the
+#            guardrail flags from scripts/registry.py RUNTIME_RUN_ARGS); not run (skip) if that image is not built
+[[sandbox]]
+name = "box"
+harnesses = ["*"]
+exec = "box"
+image = "box"
+
+[[sandbox]]
+name = "strands-sandbox"
+harnesses = ["strands"]
+exec = "strands-sandbox"
+image = "box"
+upstream = "strands-agents/sdk-python"   # strands.sandbox.DockerSandbox
+
+[[sandbox]]
+name = "claude-docker"
+harnesses = ["claude-code"]
+exec = "simulated"
+runtime = "claude-docker"

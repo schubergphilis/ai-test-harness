@@ -6,7 +6,7 @@ namespace: agentrt
 resources: [namespace.yaml, litellm.yaml, mock-llm.yaml]
 configMapGenerator:
   - name: litellm-config
-    files: [config.yaml=../../docker-local/litellm.yaml]
+    files: [config.yaml=../../docker-local/litellm.yaml, usage_logger.py=../../docker-local/usage_logger.py]
 secretGenerator:
   - name: llm-env
     envs: [../../../.env]

@@ -33,6 +33,29 @@ qlib_wait_ports() {
   return 1
 }
 
+# qlib_up <timeout-s> <name:port:log>...   start harnesses, wait for /ping, restart the silent ones once
+# (a cold start can lose a race on a loaded machine); 0 when every /ping answers
+qlib_up() {
+  local timeout=$1 spec name port log i=0; shift
+  local -a pids=() ports=()
+  for spec; do
+    IFS=: read -r name port log <<< "$spec"
+    qlib_start_harness "$name" "$port" "$log"
+    pids+=("${QL_PIDS[${#QL_PIDS[@]}-1]}"); ports+=("$port")
+  done
+  qlib_wait_ports "$timeout" "${ports[@]}" && return 0
+  for spec; do
+    IFS=: read -r name port log <<< "$spec"
+    if ! curl -sf "localhost:$port/ping" >/dev/null; then
+      echo "harness $name not ready, restarting once" >&2
+      pkill -KILL -P "${pids[$i]}" 2>/dev/null || true; kill -KILL "${pids[$i]}" 2>/dev/null || true; sleep 2
+      qlib_start_harness "$name" "$port" "${log%.log}.retry.log"
+    fi
+    i=$((i + 1))
+  done
+  qlib_wait_ports "$timeout" "${ports[@]}"
+}
+
 # Kill the PIDs we started (and their children, e.g. uv -> python), nothing else.
 qlib_cleanup() {
   local p

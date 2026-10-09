@@ -15,7 +15,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 # harness / qa modules import their siblings as top-level modules
-known-first-party = ["agent", "app", "tools_canary", "common", "compare", "registry", "report", "run", "mock_llm"]
+known-first-party = ["agent", "app", "tools_canary", "sandbox_box", "common", "compare", "registry", "report", "run", "mock_llm"]
 
 [tool.ruff.lint.per-file-ignores]
 "qa/tests/*" = ["S"]

@@ -26,7 +26,11 @@ def diff(old, new, threshold=0.2):
     nc = {key(c, "check"): c for c in new["checks"]}
     shared_models = set(old["config"]["models"]) & set(new["config"]["models"])
     shared_suites = set(old["config"]["suites"]) & set(new["config"]["suites"])
-    in_scope = lambda k: k[0] in shared_suites and (k[2] in shared_models or k[2] == "-")  # noqa: E731
+    # runs restricted with --harness only cover those harnesses (box rows: <harness>@<sandbox>);
+    # older run.json files have no config.harnesses
+    harnesses = set(new["config"].get("harnesses") or ()) or None
+    in_scope = lambda k: (k[0] in shared_suites and (k[2] in shared_models or k[2] == "-")  # noqa: E731
+                          and (harnesses is None or k[1].split("@")[0] in harnesses or k[1] == "-"))
     out = {"regressions": [], "fixed": [], "accepted": [], "new_failures": [], "missing": [], "metric_changes": []}
     for k, c in nc.items():
         o = oc.get(k)
@@ -45,7 +49,7 @@ def diff(old, new, threshold=0.2):
     om = {key(m, "name"): m["value"] for m in old["metrics"]}
     for m in new["metrics"]:
         k = key(m, "name")
-        if k in om and isinstance(om[k], (int, float)) and om[k] != m["value"]:
+        if k in om and isinstance(om[k], int | float) and om[k] != m["value"]:
             base = abs(om[k]) or 1.0
             rel = (m["value"] - om[k]) / base
             if abs(rel) >= threshold:

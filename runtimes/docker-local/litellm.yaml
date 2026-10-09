@@ -12,6 +12,7 @@ model_list:
       custom_llm_provider: openai
       api_base: os.environ/SOVEREIGN_LITELLM_BASE_URL
       api_key: os.environ/SOVEREIGN_LITELLM_API_KEY
+      additional_drop_params: ["reasoning_effort"]
   - model_name: anthropic   # kind: frontier, provider: openai_compatible
     litellm_params:
       model: os.environ/ANTHROPIC_MODEL
@@ -24,9 +25,18 @@ model_list:
       custom_llm_provider: openai
       api_base: os.environ/UPSTREAM_LITELLM_BASE_URL
       api_key: os.environ/UPSTREAM_LITELLM_API_KEY
+  - model_name: nemotron-free   # kind: frontier, provider: openrouter
+    litellm_params:
+      model: os.environ/OPENROUTER_FREE_MODEL
+      custom_llm_provider: openrouter
+      api_key: os.environ/OPENROUTER_API_KEY
+      additional_drop_params: ["reasoning_effort"]
 
 litellm_settings:
   drop_params: true
+  # Anthropic-API harnesses (claude-code) reach every upstream via chat/completions, like the others
+  use_chat_completions_url_for_anthropic_messages: true
+  callbacks: usage_logger.proxy_handler_instance   # per-call token usage -> $AGENTRT_USAGE_LOG
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

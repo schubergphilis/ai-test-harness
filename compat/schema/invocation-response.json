@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "InvocationResponse",
   "type": "object",
-  "required": ["output", "tool_calls", "usage", "harness"],
+  "required": ["output", "tool_calls", "usage", "harness", "stop_reason", "error"],
   "properties": {
     "output": {"type": "string"},
     "tool_calls": {
@@ -17,12 +17,16 @@
       }
     },
     "usage": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "input_tokens": {"type": ["integer", "null"]},
-        "output_tokens": {"type": ["integer", "null"]}
+        "output_tokens": {"type": ["integer", "null"]},
+        "cache_read_tokens": {"type": ["integer", "null"]},
+        "cache_write_tokens": {"type": ["integer", "null"]}
       }
     },
+    "stop_reason": {"enum": ["end_turn", "max_turns", "content_filter", "timeout", "cancelled", "error"]},
+    "error": {"type": ["string", "null"]},
     "harness": {"type": "string"},
     "model": {"type": "string"},
     "session_id": {"type": ["string", "null"]},

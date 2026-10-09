@@ -27,7 +27,8 @@ and the image builds. It needs no secrets.
   Never hardcode a harness list, port or model alias elsewhere. Read them through `scripts/registry.py` (Python:
   `import registry`; shell: `python3 scripts/registry.py names|port|get|models`).
 - **Generated files are not edited by hand:** `runtimes/docker-local/litellm.yaml`,
-  `runtimes/docker-local/docker-compose.harnesses.yml`, `runtimes/k8s/overlays/*` and `.github/dependabot.yml`.
+  `runtimes/docker-local/docker-compose.harnesses.yml`, `runtimes/k8s/overlays/*`, the compose file of each container
+  runtime (`runtimes/claude-docker/docker-compose.yml`) and `.github/dependabot.yml`.
   Run `make gen` after a registry change. `make gen-check` (and CI) fails if they are stale.
 - **Python harnesses share `app.py` and `tools_canary.py` byte for byte** with `harnesses/_templates/python/`.
   CI checks for drift. Change the template and every copy together, or not at all.
@@ -39,7 +40,7 @@ and the image builds. It needs no secrets.
 
 ## Adding a harness
 
-1. `make new-harness NAME=foo LANG=python` (or `LANG=node`). This copies `harnesses/_templates/<lang>/`, picks the
+1. `make new-harness NAME=foo HARNESS_LANG=python` (or `HARNESS_LANG=node`). This copies `harnesses/_templates/<lang>/`, picks the
    next free index, appends an entry to `harnesses.toml`, locks dependencies and runs `make gen`. The result is a
    framework-free tool loop that already passes the contract.
 2. Check it: `make test-native HARNESS=foo` should give 8 passed, 1 skipped (the Langfuse test).
@@ -100,3 +101,9 @@ metrics = [{"suite": "mysuite", "harness": "strands", "model": "sovereign", "nam
 - Lint must pass: `pre-commit run -a`.
 - By contributing you agree that your contribution is licensed under Apache-2.0 (see `LICENSE`).
 - Follow the [code of conduct](CODE_OF_CONDUCT.md).
+
+### Harness-specific runtimes
+
+Generic runtimes (native, Docker Compose, k3d, OpenShell) run every harness. A runtime that builds on one harness's own sandboxing is listed as `[[runtime]]` in `harnesses.toml` with the harnesses it supports and kind `container` (where the agent runs, e.g. `runtimes/claude-docker`: claude-code on the claude-docker image with its guardrails; `make gen` writes its compose service and k8s overlay).
+
+Where the agent's *commands* run is a `[[sandbox]]` entry: `exec` is the `SCENARIO_EXEC` the harness gets (`box`: the shared tool code `docker exec`s into `runtimes/box`, every harness; `strands-sandbox`: Strands' own `DockerSandbox`), `harnesses = ["*"]` or a list, and optionally `runtime` when the harness itself must run on a container runtime. The QA `box` suite runs every harness × sandbox × model and reports rows as `<harness>@<sandbox>`. A new harness gets the generic `box` sandbox for free through the shared `tools_canary.py` / `scenario.ts`.

@@ -30,14 +30,18 @@ URL_ALLOWED = r"(?:localhost|127\.0\.0\.1|github\.com|docs\.|www\.contributor-co
 URL_BAD = re.compile(rf"https?://(?!{URL_ALLOWED})[^\s\"'<>)]+")
 KEY_LIKE = re.compile(r"\b(?:sk-[A-Za-z0-9_\-]{16,}|AKIA[0-9A-Z]{16}|pk-lf-[A-Za-z0-9\-]{8,}|sk-lf-[A-Za-z0-9\-]{8,}|"
                       r"gh[pousr]_[A-Za-z0-9]{30,}|eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,})")
-PATHS = [re.compile(r"/Users/[^\s\"'<>]+"), re.compile(r"/private/[^\s\"'<>]+"), re.compile(r"/home/[^\s\"'<>]+")]
+# /home/agent is the scenarios' fake home directory (compat/fixtures/scenarios), not a real path
+LOCAL_PATH = re.compile(r"(?:/Users/|/private/|/var/folders/|/home/(?!agent\b))[^\s\"'<>]*")
+# non-loopback IPv4 (with optional :port): proxy, cluster and LAN addresses
+IP_ADDR = re.compile(r"\b(?!127\.)(?!0\.0\.0\.0\b)(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}"
+                     r"(?::\d{1,5})?\b")
 
 
 def scrub_text(s: str) -> str:
     s = s.replace(str(ROOT), ".")
-    for p in PATHS:
-        s = p.sub("[path]", s)
+    s = LOCAL_PATH.sub("[path]", s)
     s = URL_BAD.sub("[url]", s)
+    s = IP_ADDR.sub("[ip]", s)
     return KEY_LIKE.sub("[redacted]", s)
 
 
@@ -57,7 +61,7 @@ def verify(out: pathlib.Path) -> list[str]:
         if not f.is_file():
             continue
         text = f.read_text(errors="replace")
-        for label, rx in [("absolute path", re.compile(r"/Users/|/private/|/home/")), ("url", URL_BAD),
+        for label, rx in [("absolute path", LOCAL_PATH), ("url", URL_BAD), ("ip address", IP_ADDR),
                           ("key-like string", KEY_LIKE)]:
             m = rx.search(text)
             if m:
@@ -97,7 +101,8 @@ def main() -> int:
     (out / "run.json").write_text(json.dumps(run, indent=1) + "\n")
 
     import report  # qa/report.py
-    (out / "report.html").write_text(report.render(run, None) + "\n")
+    # issues.html quotes transcripts and red-team prompts: not published, so no link to it
+    (out / "report.html").write_text(report.render(run, None, issues=False) + "\n")
 
     for summary in sorted((ROOT / "quality").glob("*/summary.md")):
         dest = out / "quality" / summary.parent.name / "summary.md"

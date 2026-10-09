@@ -2,6 +2,8 @@
 # Harness services; combined with docker-compose.yml (see Makefile COMPOSE).
 x-agent: &agent
   restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
   depends_on: {litellm: {condition: service_healthy}}
   environment: &agent-env
     OPENAI_BASE_URL: http://litellm:4000/v1
@@ -52,4 +54,12 @@ services:
     ports: ["127.0.0.1:18085:8080"]
     environment: {<<: *agent-env, OTEL_SERVICE_NAME: agent-pi}
     profiles: [pi, all]
+
+  claude-code:
+    <<: *agent
+    build: {context: ../.., dockerfile: harnesses/claude-code/Dockerfile}
+    image: agentrt/claude-code:dev
+    ports: ["127.0.0.1:18086:8080"]
+    environment: {<<: *agent-env, OTEL_SERVICE_NAME: agent-claude-code}
+    profiles: [claude-code, all]
 

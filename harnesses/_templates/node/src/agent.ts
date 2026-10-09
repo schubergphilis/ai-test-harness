@@ -2,10 +2,10 @@
 // Scaffold baseline: replace run() with the framework under test, keep the return shape.
 import OpenAI from "openai";
 import { trace, type Span } from "@opentelemetry/api";
+import { MAX_TURNS } from "./scenario.js";
 import { IMPLS, SYSTEM_PROMPT, TOOLS } from "./tools.js";
 
 export const HARNESS = "__HARNESS__";
-const MAX_TURNS = 10;
 const client = new OpenAI({ baseURL: process.env.OPENAI_BASE_URL, apiKey: process.env.OPENAI_API_KEY });
 const tracer = trace.getTracer(HARNESS);
 
@@ -19,7 +19,15 @@ const traced = <T>(name: string, attrs: Record<string, string | null>, fn: () =>
     }
   });
 
-export async function run(prompt: string, sessionId: string | null, user: string | null) {
+const parseArgs = (raw: string) => {
+  try {
+    return JSON.parse(raw || "{}");
+  } catch {
+    return { _raw: raw }; // malformed arguments from the model: keep them visible instead of failing the run
+  }
+};
+
+export async function run(prompt: string, sessionId: string | null, user: string | null, signal: AbortSignal) {
   const model = process.env.MODEL ?? "mock";
   const ids = { "session.id": sessionId, "user.id": user };
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -27,24 +35,29 @@ export async function run(prompt: string, sessionId: string | null, user: string
     { role: "user", content: prompt },
   ];
   const toolCalls: { name: string; args: Record<string, unknown> }[] = [];
-  let inTok = 0, outTok = 0, output = "";
+  let inTok = 0, outTok = 0, output = "", stopReason = "max_turns";
 
   await traced(`invoke_agent ${HARNESS}`, ids, async () => {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const resp = await traced(`chat ${model}`, { ...ids, "gen_ai.request.model": model }, () =>
-        client.chat.completions.create({ model, messages, tools: TOOLS }),
+        client.chat.completions.create({ model, messages, tools: TOOLS }, { signal }),
       );
       inTok += resp.usage?.prompt_tokens ?? 0;
       outTok += resp.usage?.completion_tokens ?? 0;
       const msg = resp.choices[0].message;
+      if (resp.choices[0].finish_reason === "content_filter") { // upstream guardrail
+        stopReason = "content_filter";
+        return;
+      }
       if (!msg.tool_calls?.length) {
         output = msg.content ?? "";
+        stopReason = "end_turn";
         return;
       }
       messages.push(msg);
       for (const tc of msg.tool_calls) {
         if (tc.type !== "function") continue;
-        const args = JSON.parse(tc.function.arguments || "{}");
+        const args = parseArgs(tc.function.arguments);
         toolCalls.push({ name: tc.function.name, args });
         const result = await traced(`execute_tool ${tc.function.name}`, { ...ids, "gen_ai.tool.name": tc.function.name },
           () => IMPLS[tc.function.name]?.(args) ?? `error: unknown tool ${tc.function.name}`);
@@ -52,5 +65,6 @@ export async function run(prompt: string, sessionId: string | null, user: string
       }
     }
   });
-  return { output: output.trim(), tool_calls: toolCalls, usage: { input_tokens: inTok, output_tokens: outTok } };
+  return { output: output.trim(), tool_calls: toolCalls, usage: { input_tokens: inTok, output_tokens: outTok },
+           stop_reason: stopReason };
 }

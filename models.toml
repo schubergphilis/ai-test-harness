@@ -11,8 +11,13 @@
 #   api_key     env var with the key                 (openai_compatible, openrouter)
 #   region      env var with the AWS region          (bedrock; credentials from the standard AWS chain)
 #   aws_profile env var with an AWS profile name     (bedrock, optional)
+#   drop_params request params litellm should drop for this upstream (e.g. ["reasoning_effort"])
 #   default_qa  include in `make qa` by default (only if its env vars are set)
 #   red_team    include in the garak sweep by default
+#   concurrency parallel scenario runs in `qa/run.py` (default 2; 6 measured without 429s on 2026-10-09)
+#
+# `make qa` stays mock + sovereign + anthropic + chatgpt (parallel runs allow 4 models). The free OpenRouter
+# alias is a separate, short matrix: `make qa-free`. It is not a fifth column of the full run.
 
 [[model]]
 alias = "mock"
@@ -26,7 +31,9 @@ kind = "sovereign"
 base_url = "SOVEREIGN_LITELLM_BASE_URL"
 api_key = "SOVEREIGN_LITELLM_API_KEY"
 model = "SOVEREIGN_MODEL"
+drop_params = ["reasoning_effort"]   # vLLM upstream only accepts its own effort levels; Claude Code sends "high"
 default_qa = true
+concurrency = 6
 red_team = true
 
 [[model]]
@@ -36,6 +43,7 @@ base_url = "UPSTREAM_LITELLM_BASE_URL"
 api_key = "UPSTREAM_LITELLM_API_KEY"
 model = "ANTHROPIC_MODEL"
 default_qa = true
+concurrency = 6
 red_team = true
 
 [[model]]
@@ -45,9 +53,26 @@ base_url = "UPSTREAM_LITELLM_BASE_URL"
 api_key = "UPSTREAM_LITELLM_API_KEY"
 model = "CHATGPT_MODEL"
 default_qa = true
+concurrency = 6
 red_team = true
 
-# ---- more providers: uncomment, add the env vars to .env, `make gen`, restart `make native-up`
+# Fast open-weights stand-in for iteration. Hosted on OpenRouter's free tier, so this is not the sovereign
+# cell: prompts leave the machine, and several free hosts may train on them. Unpaid accounts get 20 requests
+# per minute and 50 per day (1,000 per day after $10 of credits). `make qa-free` stays inside that daily cap
+# (48 calls: 5 scenarios + 3 box tasks, 6 harnesses, 1 epoch, plus one preflight). Do not set default_qa:
+# a fifth model breaks the 4-way parallel run, and the full scenario grid does not fit the cap.
+[[model]]
+alias = "nemotron-free"
+kind = "frontier"
+provider = "openrouter"
+api_key = "OPENROUTER_API_KEY"
+model = "OPENROUTER_FREE_MODEL"   # nvidia/nemotron-3.5-lightning:free
+drop_params = ["reasoning_effort"]   # Claude Code sends "high"; this upstream does not use that scale
+default_qa = false
+red_team = false
+concurrency = 2
+
+# ---- more providers: uncomment, add the env vars to .env, `make gen`, then `make native-down && make native-up`
 # [[model]]
 # alias = "openrouter-sonnet"
 # kind = "frontier"

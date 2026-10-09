@@ -21,9 +21,9 @@ The question it answers: *can we swap the harness, the runtime or the model with
 
 | | |
 |---|---|
-| **Harnesses** (`harnesses.toml`) | [Strands Agents](https://github.com/strands-agents/sdk-python) · [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) · [LangGraph](https://github.com/langchain-ai/langgraph) · [Pydantic AI](https://github.com/pydantic/pydantic-ai) · [pi](https://github.com/badlogic/pi-mono) (TypeScript), plus Python/Node templates for adding your own |
-| **Models** (`models.toml`) | `mock` (deterministic, no tokens) · `sovereign` (open-weights on an OpenAI-compatible endpoint) · `anthropic` and `chatgpt` (frontier, via an OpenAI-compatible proxy). Providers: `openai_compatible`, `openrouter`, `bedrock`, all through [LiteLLM](https://github.com/BerriAI/litellm) |
-| **Runtimes** | native processes (default, lowest memory) · Docker Compose · k3d (Kubernetes) · [NVIDIA OpenShell](https://docs.nvidia.com/openshell) sandbox |
+| **Harnesses** (`harnesses.toml`) | [Strands Agents](https://github.com/strands-agents/sdk-python) · [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) · [LangGraph](https://github.com/langchain-ai/langgraph) · [Pydantic AI](https://github.com/pydantic/pydantic-ai) · [pi](https://github.com/badlogic/pi-mono) (TypeScript) · **Claude Code** via the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python); plus Python/Node templates for adding your own |
+| **Models** (`models.toml`) | `mock` (deterministic, no tokens) · `sovereign` (open-weights on an OpenAI-compatible endpoint) · `anthropic` and `chatgpt` (frontier, via an OpenAI-compatible proxy) · `nemotron-free` (`nvidia/nemotron-3.5-lightning:free` on OpenRouter, short matrix only, `make qa-free`). Providers: `openai_compatible`, `openrouter`, `bedrock`, all through [LiteLLM](https://github.com/BerriAI/litellm) |
+| **Runtimes** | generic, every harness: native processes (default, lowest memory) · Docker Compose · k3d (Kubernetes) · [NVIDIA OpenShell](https://docs.nvidia.com/openshell) sandbox. Harness-specific: [claude-docker](https://github.com/schubergphilis/claude-docker) for Claude Code (hardened image, dropped privileges, masked credentials) · **sandboxes** for the agent's commands (`box` for every harness, `strands-sandbox` via Strands' own `DockerSandbox`): they really run in a throwaway, network-less container |
 | **Quality suites** | compat contract (pytest) · repeatability and prompt injection ([Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai), UK AISI) · red-team ([garak](https://github.com/NVIDIA/garak), NVIDIA; [PyRIT](https://github.com/Azure/PyRIT), Microsoft) · audit trail ([OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), GenAI semantic conventions) · supply chain ([Syft](https://github.com/anchore/syft), [OSV-Scanner](https://github.com/google/osv-scanner), [OpenSSF Scorecard](https://github.com/ossf/scorecard)) |
 | **Report** | `runs/<id>/run.json` (schema `agentrt.qa.run/v1`) + `report.html`: needs-attention list, harness × model matrix, EU AI Act evidence map, diff against the previous run |
 
@@ -36,12 +36,15 @@ cp .env.example .env          # mock works with the defaults; fill in endpoints 
 make native-up                # LiteLLM proxy :4000 + mock LLM :14000 as local processes
 make test-native HARNESS=strands            # compat contract for one harness on the mock model
 make qa                       # all configured models × all harnesses × all suites
-open runs/index.html          # history of runs; each links to its report.html
+make qa-full                  # short behaviour grid, box and garak, side by side (QA_ARGS=--quick: 1 epoch; --scenarios all for the old grid)
+open runs/index.html          # history of runs; each links to its report.html and issues.html
 make qa-compare               # previous vs latest run; exits 1 on a regression (CI gate)
 make native-down
 ```
 
 `make qa` only includes models whose `.env` variables are set, so a fresh clone runs on `mock` alone. That costs no tokens and needs no network access to a model.
+
+Speed: `qa/run.py` runs each model in its own process, side by side. Each process gets its own port range (`AGENTRT_PORT_SHIFT` 0/20/40/60) and its own OTel collector port. Scenario concurrency per model comes from `concurrency` in `models.toml`, or from `--scenario-concurrency`. Box runs default to `--box-concurrency 2`, and the same harness never runs two box tasks at once. Conformance/audit and Inspect results are saved per model in `runs/<id>/<model>/checkpoints/`, so `--resume <id>` after a crash only redoes what is missing. `--redo inspect` forces a suite to run again, and `--serial` restores the old one-model-at-a-time loop. `quality/safety/sweep.sh` runs aliases side by side in the same way, with `SWEEP_JOBS` targets per alias (default 3). `qa/full.sh` runs the garak sweep at the same time as QA, through a second litellm on :4001 (`scripts/native.sh up-safety`), so garak tokens never count in the QA totals.
 
 ## The compat contract
 
@@ -64,6 +67,8 @@ The canary task is two tools (`lookup`, `add`) over fictional data, so models ca
 | native | `make native-up`, `make test-native`, `make qa` | used for all results so far |
 | Docker Compose | `make up HARNESS=strands [MODEL=…] [TRACING=1]`, then `make test HARNESS=strands` | compose files and Dockerfiles written; images are built in CI but have not been run end to end locally |
 | k3d | `make k3d-up`, `make k3d-deploy HARNESS=x`, `make k3d-forward HARNESS=x`, `make test RUNTIME=k3d HARNESS=x` | manifests written (kustomize); not yet run. Uses its own cluster and context and never touches other kube contexts |
+| claude-docker (claude-code only) | `make up-claude-docker`, [runtimes/claude-docker/README.md](runtimes/claude-docker/README.md): the `claude-code` harness on the claude-docker image with its guardrail flags (compose service and k8s overlay `claude-docker`) | image built in CI; not yet run locally |
+| box sandboxes (harness × sandbox × model) | `make qa-box`, [runtimes/box/README.md](runtimes/box/README.md): `run_command`/`read_file`/`list_dir` really execute in a throwaway container per invocation (no network, read-only, root-only honeypots); `box` for every harness, `strands-sandbox` for strands, `claude-docker` runs the claude-code container itself (agentrt/claude-code:claude-docker, its guardrail flags) | verified on real Docker (mock: 148/148 checks, no leftover containers) |
 | OpenShell | [runtimes/openshell/README.md](runtimes/openshell/README.md) | **unverified**: run script and default-deny egress policy written from the v0.1.x docs |
 | AWS AgentCore | — | deferred; the contract is compatible |
 
@@ -100,12 +105,12 @@ A full run (5 harnesses × 4 models × 5 suites, 387 checks): [`published-result
 
 </details>
 
-A sanitized snapshot of a full run is published in `published-results/` (see `scripts/publish_results.py`). [docs/findings.md](docs/findings.md) summarizes what it shows. Generated output (`runs/`, `quality/*/results/`) is not committed: it can hold local paths, traces and red-team transcripts.
+A sanitized snapshot of a full run is published in `published-results/` (see `scripts/publish_results.py`). [docs/findings.md](docs/findings.md) summarizes what it shows; [docs/issues-explained.md](docs/issues-explained.md) explains each issue in plain English (what happened, what it could lead to, how sure, what to do). Every run also gets `runs/<id>/issues.html` (`qa/issues.py`): the same issues with that run's harness × model grid and evidence from its transcripts (the task, the commands the agent ran, its answer, what the sandbox saw). It quotes transcripts, so it is not published. Generated output (`runs/`, `quality/*/results/`) is not committed: it can hold local paths, traces and red-team transcripts.
 
 ## Extending
 
-- **Add a harness:** `make new-harness NAME=foo LANG=python|node` scaffolds a working framework-free harness from `harnesses/_templates/` and registers it. Swap in your framework, then run `make test-native HARNESS=foo`.
-- **Add a model or provider:** add an entry to `models.toml` (OpenAI-compatible, OpenRouter or Bedrock), set its variables in `.env`, then run `make gen && make native-up`.
+- **Add a harness:** `make new-harness NAME=foo HARNESS_LANG=python|node` scaffolds a working framework-free harness from `harnesses/_templates/` and registers it. Swap in your framework, then run `make test-native HARNESS=foo`.
+- **Add a model or provider:** add an entry to `models.toml` (OpenAI-compatible, OpenRouter or Bedrock), set its variables in `.env`, then run `make gen && make native-down && make native-up` (litellm only reads its config at start).
 - **Add a quality suite:** write a collector that emits `checks`/`metrics` records for `qa/run.py`.
 
 Details and checklists are in [CONTRIBUTING.md](CONTRIBUTING.md). Architecture, ports and the `run.json` schema are in [docs/architecture.md](docs/architecture.md).

@@ -8,6 +8,7 @@ updates:
       - /harnesses/openai-agents
       - /harnesses/langgraph
       - /harnesses/pydantic-ai
+      - /harnesses/claude-code
       - /tests
       - /quality/inspect
       - /quality/audit
@@ -39,6 +40,9 @@ updates:
       - /harnesses/langgraph
       - /harnesses/pydantic-ai
       - /harnesses/pi
+      - /harnesses/claude-code
+      - /runtimes/claude-docker
+      - /runtimes/box
       - /compat/mock-llm
     schedule: {interval: weekly, day: monday}
     groups:

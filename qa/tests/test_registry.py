@@ -86,6 +86,19 @@ def test_names_ports_and_lookup(reg):
         reg.harness("nope")
 
 
+def test_port_shift_moves_every_range(reg, monkeypatch):
+    monkeypatch.setenv("AGENTRT_PORT_SHIFT", "40")
+    assert reg.port("alpha", "qa") == 18441
+    assert reg.runtime_port({"port_base": 18700}, "beta-js") == 18747
+
+
+@pytest.mark.parametrize("bad", ["10", "80", "-20"])
+def test_port_shift_rejects_overlapping_values(reg, monkeypatch, bad):
+    monkeypatch.setenv("AGENTRT_PORT_SHIFT", bad)
+    with pytest.raises(ValueError):
+        reg.port_shift()
+
+
 def test_start_command_by_language(reg):
     assert reg.start_command("beta-js", 1234) == ["node", "dist/server.js"]
     cmd = reg.start_command("alpha", 1234)
@@ -163,3 +176,17 @@ def test_gen_check_round_trip(reg, capsys):
     reg.gen(check=False)
     assert not orphan.exists()                          # overlays of removed harnesses are cleaned up
     assert "stale:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("egress", ["open", "proxy-only"])
+def test_container_runtime_egress(reg, egress):
+    r = {"name": "rt", "harnesses": ["alpha"], "kind": "container", "port_base": 18700, "egress": egress}
+    compose = reg.gen_compose_runtime(r)
+    agent = compose.split("  alpha-rt:\n", 1)[1].split("\n  alpha-rt-gw:", 1)[0]
+    if egress == "open":
+        assert '"127.0.0.1:18701:8080"' in agent and "internal: true" not in compose
+    else:  # agent only on the internal network, the gateway publishes its port, litellm joins that network
+        assert "networks: [rt-egress]" in agent and "ports:" not in agent
+        gw = compose.split("  alpha-rt-gw:", 1)[1]
+        assert '"127.0.0.1:18701:8080"' in gw and "TCP:alpha-rt:8080" in gw
+        assert "  litellm:\n    networks: [default, rt-egress]" in compose and "internal: true" in compose
