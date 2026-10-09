@@ -6,7 +6,7 @@ name: agentrt
 
 services:
   litellm:
-    image: ghcr.io/berriai/litellm:v1.104.0
+    image: ghcr.io/berriai/litellm:v1.104.2
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     ports: ["127.0.0.1:4000:4000"]
     env_file: ../../.env
@@ -28,7 +28,7 @@ services:
   # ---------------------------------------------------------------- Langfuse v3 (MIT core)
   langfuse-worker:
     profiles: [tracing]
-    image: docker.io/langfuse/langfuse-worker:4.50.0
+    image: docker.io/langfuse/langfuse-worker:4.53.0
     restart: unless-stopped
     depends_on: &lf-deps
       postgres: {condition: service_healthy}
@@ -65,7 +65,7 @@ services:
 
   langfuse-web:
     profiles: [tracing]
-    image: docker.io/langfuse/langfuse:4.50.0
+    image: docker.io/langfuse/langfuse:4.53.0
     restart: unless-stopped
     depends_on: *lf-deps
     ports: ["127.0.0.1:3000:3000"]
@@ -90,7 +90,7 @@ services:
 
   clickhouse:
     profiles: [tracing]
-    image: docker.io/clickhouse/clickhouse-server:26.9.10.4
+    image: docker.io/clickhouse/clickhouse-server:26.9.12.8
     restart: unless-stopped
     user: "101:101"
     environment:
@@ -107,7 +107,7 @@ services:
 
   minio:
     profiles: [tracing]
-    image: cgr.dev/chainguard/minio@sha256:e7ca559d9f7c0b5f24f5f669bb92f40f3ca88d56273b808bf3a7c116c17d2ffa   # latest as of 2026-10-07 (chainguard publishes :latest only)
+    image: cgr.dev/chainguard/minio@sha256:6476f81b9739912fa9f50ceae2bb049a30336527cccd24beccfbeb4145f8f696   # latest as of 2026-10-07 (chainguard publishes :latest only)
     restart: unless-stopped
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
